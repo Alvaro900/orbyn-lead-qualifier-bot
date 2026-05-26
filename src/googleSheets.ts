@@ -2,21 +2,21 @@ import { google, sheets_v4 } from "googleapis";
 import type { AppConfig, LeadSheetRow } from "./types.js";
 
 const header = [
-  "Fecha",
-  "Chat ID",
-  "Mensaje ID",
-  "Lead recibido",
-  "Decisión",
-  "Motivo",
-  "Sector detectado",
-  "Empleados",
-  "Ubicación",
-  "Interés IA/automatización",
-  "Confianza del análisis",
-  "Cumple sector",
-  "Cumple tamaño",
-  "Cumple ubicación",
-  "Cumple interés IA"
+  "Fecha y hora",
+  "ID chat (oculto)",
+  "ID mensaje (oculto)",
+  "Texto del lead",
+  "Resultado",
+  "Por qué se decide así",
+  "Tipo de empresa",
+  "Nº empleados",
+  "País/ciudad",
+  "Quiere IA/automatización",
+  "Confianza",
+  "Sector correcto",
+  "Tamaño suficiente",
+  "Ubicación válida",
+  "Interés válido"
 ];
 
 const dashboardTabName = "Dashboard";
@@ -257,14 +257,17 @@ async function applySheetFormatting(
             }
           }
         },
-        ...columnWidths(sheetId)
+        ...columnWidths(sheetId),
+        ...hiddenTechnicalColumnRequests(sheetId),
+        ...headerNoteRequests(sheetId),
+        ...leadConditionalFormatRequests(sheetId)
       ]
     }
   });
 }
 
 function columnWidths(sheetId: number): sheets_v4.Schema$Request[] {
-  const widths = [150, 120, 120, 380, 130, 430, 210, 105, 180, 190, 165, 125, 125, 135, 145];
+  const widths = [150, 115, 125, 420, 145, 460, 210, 115, 180, 205, 120, 130, 145, 135, 130];
 
   return widths.map((pixelSize, index) => ({
     updateDimensionProperties: {
@@ -278,6 +281,125 @@ function columnWidths(sheetId: number): sheets_v4.Schema$Request[] {
       fields: "pixelSize"
     }
   }));
+}
+
+function hiddenTechnicalColumnRequests(sheetId: number): sheets_v4.Schema$Request[] {
+  return [
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId,
+          dimension: "COLUMNS",
+          startIndex: 1,
+          endIndex: 3
+        },
+        properties: { hiddenByUser: true },
+        fields: "hiddenByUser"
+      }
+    }
+  ];
+}
+
+function headerNoteRequests(sheetId: number): sheets_v4.Schema$Request[] {
+  const notes = [
+    "Cuándo llegó el lead al bot.",
+    "ID técnico de Telegram. Se oculta porque no aporta valor en la revisión diaria.",
+    "ID técnico del mensaje. Sirve para trazabilidad interna.",
+    "Mensaje original enviado al bot.",
+    "Decisión final del bot: Cualificado o No cualificado.",
+    "Resumen breve del razonamiento.",
+    "Sector o tipo de empresa detectado.",
+    "Número de empleados detectado.",
+    "Ubicación detectada.",
+    "Si el lead muestra interés en IA o automatización.",
+    "Seguridad del análisis: Alta, Media o Baja.",
+    "Indica si encaja con servicios/consultoría.",
+    "Indica si tiene al menos 5 empleados.",
+    "Indica si está en España o Latinoamérica.",
+    "Indica si hay interés claro en automatización o IA."
+  ];
+
+  return notes.map((note, index) => ({
+    updateCells: {
+      range: {
+        sheetId,
+        startRowIndex: 0,
+        endRowIndex: 1,
+        startColumnIndex: index,
+        endColumnIndex: index + 1
+      },
+      rows: [{ values: [{ note }] }],
+      fields: "note"
+    }
+  }));
+}
+
+function leadConditionalFormatRequests(sheetId: number): sheets_v4.Schema$Request[] {
+  return [
+    textEqualsRule(sheetId, 4, "Cualificado", 0, greenFormat()),
+    textEqualsRule(sheetId, 4, "No cualificado", 1, redFormat()),
+    textEqualsRule(sheetId, 9, "Sí", 2, greenFormat()),
+    textEqualsRule(sheetId, 9, "No", 3, redFormat()),
+    textEqualsRule(sheetId, 10, "Alta", 4, greenFormat()),
+    textEqualsRule(sheetId, 10, "Media", 5, amberFormat()),
+    textEqualsRule(sheetId, 10, "Baja", 6, redFormat()),
+    ...[11, 12, 13, 14].flatMap((columnIndex, offset) => [
+      textEqualsRule(sheetId, columnIndex, "Sí", 7 + offset * 2, greenFormat()),
+      textEqualsRule(sheetId, columnIndex, "No", 8 + offset * 2, redFormat())
+    ])
+  ];
+}
+
+function textEqualsRule(
+  sheetId: number,
+  columnIndex: number,
+  value: string,
+  index: number,
+  format: sheets_v4.Schema$CellFormat
+): sheets_v4.Schema$Request {
+  return {
+    addConditionalFormatRule: {
+      rule: {
+        ranges: [
+          {
+            sheetId,
+            startRowIndex: 1,
+            startColumnIndex: columnIndex,
+            endColumnIndex: columnIndex + 1
+          }
+        ],
+        booleanRule: {
+          condition: {
+            type: "TEXT_EQ",
+            values: [{ userEnteredValue: value }]
+          },
+          format
+        }
+      },
+      index
+    }
+  };
+}
+
+function greenFormat(): sheets_v4.Schema$CellFormat {
+  return {
+    backgroundColor: { red: 0.85, green: 0.95, blue: 0.86 },
+    textFormat: { foregroundColor: { red: 0.05, green: 0.34, blue: 0.13 }, bold: true }
+  };
+}
+
+function redFormat(): sheets_v4.Schema$CellFormat {
+  return {
+    backgroundColor: { red: 0.98, green: 0.87, blue: 0.85 },
+    textFormat: { foregroundColor: { red: 0.63, green: 0.11, blue: 0.08 }, bold: true }
+  };
+}
+
+function amberFormat(): sheets_v4.Schema$CellFormat {
+  return {
+    backgroundColor: { red: 1, green: 0.94, blue: 0.78 },
+    textFormat: { foregroundColor: { red: 0.49, green: 0.29, blue: 0.02 }, bold: true }
+  };
 }
 
 async function rebuildDashboard(
@@ -395,52 +517,52 @@ async function buildDashboardStats(
 function dashboardValues(stats: DashboardStats): Array<Array<string | number>> {
   const values: Array<Array<string | number>> = [
     ["Dashboard de leads Orbyn"],
-    [""],
-    ["Métrica", "Valor", "", "Decisión", "Cantidad", "", "Criterio incumplido", "Fallos"],
+    ["Resumen ejecutivo: volumen, calidad y motivos de descarte de los leads enviados al bot."],
+    ["Indicador", "Valor", "Cómo leerlo", "Resultado", "Nº leads", "", "Motivo de descarte", "Nº leads"],
     [
-      "Total leads",
+      "Leads recibidos",
       stats.total,
-      "",
+      "Todos los mensajes procesados por el bot.",
       "Cualificado",
       stats.qualified,
       "",
-      "Sector",
+      "Sector no encaja",
       stats.criteriaFailures.sector
     ],
     [
-      "Cualificados",
+      "Leads buenos",
       stats.qualified,
-      "",
+      "Leads que cumplen sector, tamaño, ubicación e interés en IA/automatización.",
       "No cualificado",
       stats.notQualified,
       "",
-      "Tamaño",
+      "Tamaño insuficiente",
       stats.criteriaFailures.size
     ],
     [
-      "No cualificados",
+      "Leads descartados",
       stats.notQualified,
+      "Leads que fallan uno o más criterios del ICP.",
       "",
       "",
       "",
-      "",
-      "Ubicación",
+      "Fuera de España/LatAm",
       stats.criteriaFailures.location
     ],
     [
-      "Tasa de cualificación",
+      "% leads cualificados",
       stats.qualificationRate,
+      "Porcentaje de leads que ventas debería revisar primero.",
       "",
       "",
       "",
-      "",
-      "Interés IA",
+      "Sin interés IA claro",
       stats.criteriaFailures.interest
     ],
-    ["Leads hoy", stats.today],
-    ["Últimos 7 días", stats.lastSevenDays],
+    ["Leads de hoy", stats.today, "Actividad recibida durante el día actual."],
+    ["Leads últimos 7 días", stats.lastSevenDays, "Volumen reciente para detectar tendencia."],
     [""],
-    ["Leads por día", "Cantidad", "", "Leads cualificados de alta confianza", "Lead", "Motivo"]
+    ["Evolución por día", "Nº leads", "", "Fecha", "Lead cualificado prioritario", "Motivo"]
   ];
 
   const bodyLength = Math.max(stats.leadsByDay.length, stats.topLeads.length, 1);
