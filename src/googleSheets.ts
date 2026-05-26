@@ -518,13 +518,10 @@ function dashboardValues(stats: DashboardStats): Array<Array<string | number>> {
   const values: Array<Array<string | number>> = [
     ["Dashboard de leads Orbyn"],
     ["Resumen ejecutivo de volumen, calidad y motivos de descarte."],
-    ["Indicador", "Valor", "", "Resultado", "Nº leads", "", "Motivo de descarte", "Nº leads"],
+    ["Indicador", "Valor", "", "Motivo de descarte", "Nº leads"],
     [
       "Leads recibidos",
       stats.total,
-      "",
-      "Cualificado",
-      stats.qualified,
       "",
       "Sector no encaja",
       stats.criteriaFailures.sector
@@ -533,9 +530,6 @@ function dashboardValues(stats: DashboardStats): Array<Array<string | number>> {
       "Leads buenos",
       stats.qualified,
       "",
-      "No cualificado",
-      stats.notQualified,
-      "",
       "Tamaño insuficiente",
       stats.criteriaFailures.size
     ],
@@ -543,18 +537,12 @@ function dashboardValues(stats: DashboardStats): Array<Array<string | number>> {
       "Leads descartados",
       stats.notQualified,
       "",
-      "",
-      "",
-      "",
       "Fuera de España/LatAm",
       stats.criteriaFailures.location
     ],
     [
       "% leads cualificados",
       stats.qualificationRate,
-      "",
-      "",
-      "",
       "",
       "Sin interés IA claro",
       stats.criteriaFailures.interest
@@ -726,12 +714,12 @@ function dashboardChartRequests(sheetId: number): sheets_v4.Schema$Request[] {
               legendPosition: "RIGHT_LEGEND",
               domain: {
                 sourceRange: {
-                  sources: [{ sheetId, startRowIndex: 3, endRowIndex: 5, startColumnIndex: 3, endColumnIndex: 4 }]
+                  sources: [{ sheetId, startRowIndex: 4, endRowIndex: 6, startColumnIndex: 0, endColumnIndex: 1 }]
                 }
               },
               series: {
                 sourceRange: {
-                  sources: [{ sheetId, startRowIndex: 3, endRowIndex: 5, startColumnIndex: 4, endColumnIndex: 5 }]
+                  sources: [{ sheetId, startRowIndex: 4, endRowIndex: 6, startColumnIndex: 1, endColumnIndex: 2 }]
                 }
               }
             }
@@ -762,7 +750,7 @@ function dashboardChartRequests(sheetId: number): sheets_v4.Schema$Request[] {
                 {
                   domain: {
                     sourceRange: {
-                      sources: [{ sheetId, startRowIndex: 3, endRowIndex: 7, startColumnIndex: 6, endColumnIndex: 7 }]
+                      sources: [{ sheetId, startRowIndex: 3, endRowIndex: 7, startColumnIndex: 3, endColumnIndex: 4 }]
                     }
                   }
                 }
@@ -771,7 +759,7 @@ function dashboardChartRequests(sheetId: number): sheets_v4.Schema$Request[] {
                 {
                   series: {
                     sourceRange: {
-                      sources: [{ sheetId, startRowIndex: 3, endRowIndex: 7, startColumnIndex: 7, endColumnIndex: 8 }]
+                      sources: [{ sheetId, startRowIndex: 3, endRowIndex: 7, startColumnIndex: 4, endColumnIndex: 5 }]
                     }
                   }
                 }
