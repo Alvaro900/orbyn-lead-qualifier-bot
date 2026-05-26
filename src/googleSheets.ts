@@ -261,13 +261,19 @@ async function normalizeExistingSheetValues(
     }
 
     const formattedTimestamp = formatTimestampForSheet(String(normalized[0] ?? ""));
+    const formattedAutomationInterest = formatAutomationInterestForSheet(normalized[9]);
     const formattedConfidence = formatConfidenceForSheet(String(normalized[10] ?? ""));
 
-    if (normalized[0] !== formattedTimestamp || normalized[10] !== formattedConfidence) {
+    if (
+      normalized[0] !== formattedTimestamp ||
+      normalized[9] !== formattedAutomationInterest ||
+      normalized[10] !== formattedConfidence
+    ) {
       changed = true;
     }
 
     normalized[0] = formattedTimestamp;
+    normalized[9] = formattedAutomationInterest;
     normalized[10] = formattedConfidence;
 
     return normalized.slice(0, header.length);
@@ -298,7 +304,7 @@ function toSheetValues(row: LeadSheetRow): Array<string | number | boolean> {
     qualification.extracted.business_type ?? "",
     qualification.extracted.employee_count ?? "",
     qualification.extracted.location ?? "",
-    qualification.extracted.automation_or_ai_interest ?? "",
+    formatAutomationInterestForSheet(qualification.extracted.automation_or_ai_interest),
     formatConfidenceForSheet(qualification.confidence)
   ];
 }
@@ -340,4 +346,26 @@ function formatConfidenceForSheet(value: string): string {
   }
 
   return value;
+}
+
+function formatAutomationInterestForSheet(value: unknown): string {
+  if (typeof value === "boolean") {
+    return value ? "Sí" : "No";
+  }
+
+  const normalized = String(value ?? "").trim().toLowerCase();
+
+  if (!normalized) {
+    return "";
+  }
+
+  if (normalized === "true" || normalized === "si" || normalized === "sí") {
+    return "Sí";
+  }
+
+  if (normalized === "false" || normalized === "no") {
+    return "No";
+  }
+
+  return String(value);
 }
