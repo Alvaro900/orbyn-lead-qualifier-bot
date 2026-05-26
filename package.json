@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Bot de Telegram para cualificar leads B2B de Orbyn y registrarlos en Google Sheets.",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc",
