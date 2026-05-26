@@ -550,7 +550,7 @@ function dashboardValues(stats: DashboardStats): Array<Array<string | number>> {
     ["Leads de hoy", stats.today],
     ["Leads últimos 7 días", stats.lastSevenDays],
     [""],
-    ["Evolución por día", "Nº leads", "", "Fecha", "Lead cualificado prioritario", "Motivo"]
+    ["Evolución por día", "Nº leads", "", "Fecha", "Lead listo para ventas", "Motivo"]
   ];
 
   const bodyLength = Math.max(stats.leadsByDay.length, stats.topLeads.length, 1);
@@ -623,6 +623,21 @@ function dashboardFormattingRequests(sheetId: number): sheets_v4.Schema$Request[
     {
       repeatCell: {
         range: { sheetId, startRowIndex: 2, endRowIndex: 3, startColumnIndex: 0, endColumnIndex: 8 },
+        cell: {
+          userEnteredFormat: {
+            backgroundColor: { red: 0.08, green: 0.18, blue: 0.31 },
+            textFormat: {
+              foregroundColor: { red: 1, green: 1, blue: 1 },
+              bold: true
+            }
+          }
+        },
+        fields: "userEnteredFormat(backgroundColor,textFormat)"
+      }
+    },
+    {
+      repeatCell: {
+        range: { sheetId, startRowIndex: 10, endRowIndex: 11, startColumnIndex: 0, endColumnIndex: 6 },
         cell: {
           userEnteredFormat: {
             backgroundColor: { red: 0.08, green: 0.18, blue: 0.31 },
