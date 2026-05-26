@@ -2,17 +2,17 @@ import { google, sheets_v4 } from "googleapis";
 import type { AppConfig, LeadSheetRow } from "./types.js";
 
 const header = [
-  "fecha",
-  "telegram_chat_id",
-  "telegram_message_id",
-  "datos_recibidos",
-  "decision",
-  "motivo",
-  "sector_detectado",
-  "empleados_detectados",
-  "ubicacion_detectada",
-  "interes_automatizacion_ia",
-  "confianza"
+  "Fecha",
+  "Chat ID",
+  "Mensaje ID",
+  "Lead recibido",
+  "Decisión",
+  "Motivo",
+  "Sector detectado",
+  "Empleados",
+  "Ubicación",
+  "Interés IA/automatización",
+  "Confianza"
 ];
 
 let cachedSheets: sheets_v4.Sheets | null = null;
@@ -35,6 +35,22 @@ export async function appendLeadToSheet(row: LeadSheetRow, config: AppConfig): P
       values: [toSheetValues(row)]
     }
   });
+}
+
+export async function formatLeadSheet(config: AppConfig): Promise<void> {
+  if (!config.googleSheetId) {
+    throw new Error("GOOGLE_SHEET_ID no configurado");
+  }
+
+  const sheets = getSheetsClient(config);
+  const sheetId = await getOrCreateLeadsSheetId(
+    sheets,
+    config.googleSheetId,
+    config.googleSheetTabName
+  );
+
+  await ensureSheetHeader(sheets, config.googleSheetId, config.googleSheetTabName);
+  await applySheetFormatting(sheets, config.googleSheetId, sheetId);
 }
 
 function getSheetsClient(config: AppConfig): sheets_v4.Sheets {
@@ -67,18 +83,46 @@ async function ensureLeadsSheet(
     return;
   }
 
-  const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId });
-  const hasTab = spreadsheet.data.sheets?.some((sheet) => sheet.properties?.title === tabName);
+  const sheetId = await getOrCreateLeadsSheetId(sheets, spreadsheetId, tabName);
+  await ensureSheetHeader(sheets, spreadsheetId, tabName);
+  await applySheetFormatting(sheets, spreadsheetId, sheetId);
 
-  if (!hasTab) {
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId,
-      requestBody: {
-        requests: [{ addSheet: { properties: { title: tabName } } }]
-      }
-    });
+  ensuredSheetIds.add(cacheKey);
+}
+
+async function getOrCreateLeadsSheetId(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  tabName: string
+): Promise<number> {
+  const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId });
+  const existingSheet = spreadsheet.data.sheets?.find((sheet) => sheet.properties?.title === tabName);
+  const existingSheetId = existingSheet?.properties?.sheetId;
+
+  if (typeof existingSheetId === "number") {
+    return existingSheetId;
   }
 
+  const created = await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [{ addSheet: { properties: { title: tabName } } }]
+    }
+  });
+
+  const createdSheetId = created.data.replies?.[0]?.addSheet?.properties?.sheetId;
+  if (typeof createdSheetId !== "number") {
+    throw new Error("No se pudo crear la pestaña Leads");
+  }
+
+  return createdSheetId;
+}
+
+async function ensureSheetHeader(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  tabName: string
+): Promise<void> {
   const currentHeader = await sheets.spreadsheets.values.get({
     spreadsheetId,
     range: `${tabName}!A1:K1`
@@ -95,8 +139,101 @@ async function ensureLeadsSheet(
       requestBody: { values: [header] }
     });
   }
+}
 
-  ensuredSheetIds.add(cacheKey);
+async function applySheetFormatting(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  sheetId: number
+): Promise<void> {
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [
+        {
+          updateSheetProperties: {
+            properties: {
+              sheetId,
+              gridProperties: { frozenRowCount: 1 }
+            },
+            fields: "gridProperties.frozenRowCount"
+          }
+        },
+        {
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 0,
+              endRowIndex: 1,
+              startColumnIndex: 0,
+              endColumnIndex: header.length
+            },
+            cell: {
+              userEnteredFormat: {
+                backgroundColor: { red: 0.08, green: 0.18, blue: 0.31 },
+                horizontalAlignment: "CENTER",
+                verticalAlignment: "MIDDLE",
+                wrapStrategy: "WRAP",
+                textFormat: {
+                  foregroundColor: { red: 1, green: 1, blue: 1 },
+                  bold: true
+                }
+              }
+            },
+            fields:
+              "userEnteredFormat(backgroundColor,horizontalAlignment,verticalAlignment,wrapStrategy,textFormat)"
+          }
+        },
+        {
+          repeatCell: {
+            range: {
+              sheetId,
+              startRowIndex: 1,
+              startColumnIndex: 0,
+              endColumnIndex: header.length
+            },
+            cell: {
+              userEnteredFormat: {
+                verticalAlignment: "TOP",
+                wrapStrategy: "WRAP"
+              }
+            },
+            fields: "userEnteredFormat(verticalAlignment,wrapStrategy)"
+          }
+        },
+        {
+          setBasicFilter: {
+            filter: {
+              range: {
+                sheetId,
+                startRowIndex: 0,
+                startColumnIndex: 0,
+                endColumnIndex: header.length
+              }
+            }
+          }
+        },
+        ...columnWidths(sheetId)
+      ]
+    }
+  });
+}
+
+function columnWidths(sheetId: number): sheets_v4.Schema$Request[] {
+  const widths = [175, 120, 120, 380, 130, 430, 210, 105, 180, 190, 105];
+
+  return widths.map((pixelSize, index) => ({
+    updateDimensionProperties: {
+      range: {
+        sheetId,
+        dimension: "COLUMNS",
+        startIndex: index,
+        endIndex: index + 1
+      },
+      properties: { pixelSize },
+      fields: "pixelSize"
+    }
+  }));
 }
 
 function toSheetValues(row: LeadSheetRow): Array<string | number | boolean> {
