@@ -517,12 +517,12 @@ async function buildDashboardStats(
 function dashboardValues(stats: DashboardStats): Array<Array<string | number>> {
   const values: Array<Array<string | number>> = [
     ["Dashboard de leads Orbyn"],
-    ["Resumen ejecutivo: volumen, calidad y motivos de descarte de los leads enviados al bot."],
-    ["Indicador", "Valor", "Cómo leerlo", "Resultado", "Nº leads", "", "Motivo de descarte", "Nº leads"],
+    ["Resumen ejecutivo de volumen, calidad y motivos de descarte."],
+    ["Indicador", "Valor", "", "Resultado", "Nº leads", "", "Motivo de descarte", "Nº leads"],
     [
       "Leads recibidos",
       stats.total,
-      "Todos los mensajes procesados por el bot.",
+      "",
       "Cualificado",
       stats.qualified,
       "",
@@ -532,7 +532,7 @@ function dashboardValues(stats: DashboardStats): Array<Array<string | number>> {
     [
       "Leads buenos",
       stats.qualified,
-      "Leads que cumplen sector, tamaño, ubicación e interés en IA/automatización.",
+      "",
       "No cualificado",
       stats.notQualified,
       "",
@@ -542,7 +542,7 @@ function dashboardValues(stats: DashboardStats): Array<Array<string | number>> {
     [
       "Leads descartados",
       stats.notQualified,
-      "Leads que fallan uno o más criterios del ICP.",
+      "",
       "",
       "",
       "",
@@ -552,15 +552,15 @@ function dashboardValues(stats: DashboardStats): Array<Array<string | number>> {
     [
       "% leads cualificados",
       stats.qualificationRate,
-      "Porcentaje de leads que ventas debería revisar primero.",
+      "",
       "",
       "",
       "",
       "Sin interés IA claro",
       stats.criteriaFailures.interest
     ],
-    ["Leads de hoy", stats.today, "Actividad recibida durante el día actual."],
-    ["Leads últimos 7 días", stats.lastSevenDays, "Volumen reciente para detectar tendencia."],
+    ["Leads de hoy", stats.today],
+    ["Leads últimos 7 días", stats.lastSevenDays],
     [""],
     ["Evolución por día", "Nº leads", "", "Fecha", "Lead cualificado prioritario", "Motivo"]
   ];
@@ -574,9 +574,13 @@ function dashboardValues(stats: DashboardStats): Array<Array<string | number>> {
     values.push([dayRow[0], dayRow[1], "", topLead[0], topLead[1], topLead[2]]);
   }
 
-  return [
-    ...values
-  ];
+  values.push([""]);
+  values.push(["Guía rápida"]);
+  values.push(["Leads buenos", "Cumplen los 4 criterios: sector, tamaño, ubicación e interés en IA."]);
+  values.push(["Leads descartados", "Fallan al menos un criterio del ICP."]);
+  values.push(["% leads cualificados", "Porcentaje de leads que ventas debería revisar primero."]);
+
+  return values;
 }
 
 async function getSheetChartIds(
@@ -649,10 +653,34 @@ function dashboardFormattingRequests(sheetId: number): sheets_v4.Schema$Request[
         cell: {
           userEnteredFormat: {
             verticalAlignment: "MIDDLE",
-            wrapStrategy: "WRAP"
+            wrapStrategy: "CLIP"
           }
         },
         fields: "userEnteredFormat(verticalAlignment,wrapStrategy)"
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId,
+          dimension: "ROWS",
+          startIndex: 0,
+          endIndex: 1
+        },
+        properties: { pixelSize: 36 },
+        fields: "pixelSize"
+      }
+    },
+    {
+      updateDimensionProperties: {
+        range: {
+          sheetId,
+          dimension: "ROWS",
+          startIndex: 1,
+          endIndex: 35
+        },
+        properties: { pixelSize: 28 },
+        fields: "pixelSize"
       }
     },
     {
@@ -671,7 +699,7 @@ function dashboardFormattingRequests(sheetId: number): sheets_v4.Schema$Request[
 }
 
 function dashboardColumnWidths(sheetId: number): sheets_v4.Schema$Request[] {
-  const widths = [190, 120, 28, 190, 120, 28, 190, 110, 28, 420, 28, 420];
+  const widths = [190, 90, 28, 180, 90, 28, 210, 90, 28, 360, 28, 360];
 
   return widths.map((pixelSize, index) => ({
     updateDimensionProperties: {
