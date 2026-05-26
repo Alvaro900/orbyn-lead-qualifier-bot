@@ -12,7 +12,7 @@ const header = [
   "Empleados",
   "Ubicación",
   "Interés IA/automatización",
-  "Confianza"
+  "Confianza del análisis"
 ];
 
 let cachedSheets: sheets_v4.Sheets | null = null;
@@ -50,6 +50,7 @@ export async function formatLeadSheet(config: AppConfig): Promise<void> {
   );
 
   await ensureSheetHeader(sheets, config.googleSheetId, config.googleSheetTabName);
+  await normalizeExistingSheetValues(sheets, config.googleSheetId, config.googleSheetTabName);
   await applySheetFormatting(sheets, config.googleSheetId, sheetId);
 }
 
@@ -220,7 +221,7 @@ async function applySheetFormatting(
 }
 
 function columnWidths(sheetId: number): sheets_v4.Schema$Request[] {
-  const widths = [175, 120, 120, 380, 130, 430, 210, 105, 180, 190, 105];
+  const widths = [150, 120, 120, 380, 130, 430, 210, 105, 180, 190, 165];
 
   return widths.map((pixelSize, index) => ({
     updateDimensionProperties: {
@@ -236,11 +237,59 @@ function columnWidths(sheetId: number): sheets_v4.Schema$Request[] {
   }));
 }
 
+async function normalizeExistingSheetValues(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  tabName: string
+): Promise<void> {
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `${tabName}!A2:K`
+  });
+
+  const rows = response.data.values ?? [];
+  if (rows.length === 0) {
+    return;
+  }
+
+  let changed = false;
+  const normalizedRows = rows.map((row) => {
+    const normalized = [...row];
+
+    while (normalized.length < header.length) {
+      normalized.push("");
+    }
+
+    const formattedTimestamp = formatTimestampForSheet(String(normalized[0] ?? ""));
+    const formattedConfidence = formatConfidenceForSheet(String(normalized[10] ?? ""));
+
+    if (normalized[0] !== formattedTimestamp || normalized[10] !== formattedConfidence) {
+      changed = true;
+    }
+
+    normalized[0] = formattedTimestamp;
+    normalized[10] = formattedConfidence;
+
+    return normalized.slice(0, header.length);
+  });
+
+  if (!changed) {
+    return;
+  }
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${tabName}!A2:K${rows.length + 1}`,
+    valueInputOption: "RAW",
+    requestBody: { values: normalizedRows }
+  });
+}
+
 function toSheetValues(row: LeadSheetRow): Array<string | number | boolean> {
   const { qualification } = row;
 
   return [
-    row.timestamp,
+    formatTimestampForSheet(row.timestamp),
     String(row.telegramChatId),
     String(row.telegramMessageId),
     row.rawLeadText,
@@ -250,6 +299,45 @@ function toSheetValues(row: LeadSheetRow): Array<string | number | boolean> {
     qualification.extracted.employee_count ?? "",
     qualification.extracted.location ?? "",
     qualification.extracted.automation_or_ai_interest ?? "",
-    qualification.confidence
+    formatConfidenceForSheet(qualification.confidence)
   ];
+}
+
+function formatTimestampForSheet(value: string): string {
+  const trimmed = value.trim();
+
+  const isoMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/);
+  if (isoMatch) {
+    return `${isoMatch[1]} ${isoMatch[2]}:${isoMatch[3]}`;
+  }
+
+  const compactMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}):(\d{2})/);
+  if (compactMatch) {
+    return `${compactMatch[1]} ${compactMatch[2]}:${compactMatch[3]}`;
+  }
+
+  const parsedDate = new Date(trimmed);
+  if (!Number.isNaN(parsedDate.getTime())) {
+    return parsedDate.toISOString().slice(0, 16).replace("T", " ");
+  }
+
+  return trimmed;
+}
+
+function formatConfidenceForSheet(value: string): string {
+  const normalized = value.trim().toLowerCase();
+
+  if (normalized === "high" || normalized === "alta") {
+    return "Alta";
+  }
+
+  if (normalized === "medium" || normalized === "media") {
+    return "Media";
+  }
+
+  if (normalized === "low" || normalized === "baja") {
+    return "Baja";
+  }
+
+  return value;
 }
