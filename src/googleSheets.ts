@@ -41,6 +41,13 @@ export async function appendLeadToSheet(row: LeadSheetRow, config: AppConfig): P
       values: [toSheetValues(row)]
     }
   });
+
+  const dashboardSheetId = await getOrCreateSheetId(
+    sheets,
+    config.googleSheetId,
+    dashboardTabName
+  );
+  await rebuildDashboard(sheets, config.googleSheetId, dashboardSheetId, config.googleSheetTabName);
 }
 
 export async function formatLeadSheet(config: AppConfig): Promise<void> {
@@ -279,7 +286,7 @@ async function rebuildDashboard(
   dashboardSheetId: number,
   leadsTabName: string
 ): Promise<void> {
-  const quotedLeadsTab = `'${leadsTabName.replace(/'/g, "''")}'`;
+  const stats = await buildDashboardStats(sheets, spreadsheetId, leadsTabName);
 
   await sheets.spreadsheets.values.clear({
     spreadsheetId,
@@ -288,10 +295,10 @@ async function rebuildDashboard(
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `${dashboardTabName}!A1:H18`,
-    valueInputOption: "USER_ENTERED",
+    range: `${dashboardTabName}!A1:H80`,
+    valueInputOption: "RAW",
     requestBody: {
-      values: dashboardValues(quotedLeadsTab)
+      values: dashboardValues(stats)
     }
   });
 
@@ -312,20 +319,141 @@ async function rebuildDashboard(
   });
 }
 
-function dashboardValues(leadsTab: string): Array<Array<string>> {
-  return [
+type DashboardStats = {
+  total: number;
+  qualified: number;
+  notQualified: number;
+  qualificationRate: number;
+  today: number;
+  lastSevenDays: number;
+  criteriaFailures: {
+    sector: number;
+    size: number;
+    location: number;
+    interest: number;
+  };
+  leadsByDay: Array<[string, number]>;
+  topLeads: Array<[string, string, string]>;
+};
+
+async function buildDashboardStats(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  leadsTabName: string
+): Promise<DashboardStats> {
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `${leadsTabName}!A2:${columnLetter(header.length)}`
+  });
+
+  const rows = (response.data.values ?? []).filter((row) => String(row[0] ?? "").trim());
+  const todayPrefix = new Date().toISOString().slice(0, 10);
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 6);
+  const sevenDaysAgoPrefix = sevenDaysAgo.toISOString().slice(0, 10);
+
+  const qualified = rows.filter((row) => row[4] === "Cualificado").length;
+  const total = rows.length;
+  const leadsByDayMap = new Map<string, number>();
+
+  for (const row of rows) {
+    const day = String(row[0] ?? "").slice(0, 10);
+    if (day) {
+      leadsByDayMap.set(day, (leadsByDayMap.get(day) ?? 0) + 1);
+    }
+  }
+
+  const topLeads = rows
+    .filter((row) => row[4] === "Cualificado" && row[10] === "Alta")
+    .slice(-10)
+    .reverse()
+    .map((row) => [
+      String(row[0] ?? ""),
+      String(row[3] ?? ""),
+      String(row[5] ?? "")
+    ] as [string, string, string]);
+
+  return {
+    total,
+    qualified,
+    notQualified: rows.filter((row) => row[4] === "No cualificado").length,
+    qualificationRate: total > 0 ? qualified / total : 0,
+    today: rows.filter((row) => String(row[0] ?? "").startsWith(todayPrefix)).length,
+    lastSevenDays: rows.filter((row) => String(row[0] ?? "").slice(0, 10) >= sevenDaysAgoPrefix)
+      .length,
+    criteriaFailures: {
+      sector: rows.filter((row) => row[11] === "No").length,
+      size: rows.filter((row) => row[12] === "No").length,
+      location: rows.filter((row) => row[13] === "No").length,
+      interest: rows.filter((row) => row[14] === "No").length
+    },
+    leadsByDay: [...leadsByDayMap.entries()].sort(([left], [right]) => left.localeCompare(right)),
+    topLeads
+  };
+}
+
+function dashboardValues(stats: DashboardStats): Array<Array<string | number>> {
+  const values: Array<Array<string | number>> = [
     ["Dashboard de leads Orbyn"],
     [""],
     ["Métrica", "Valor", "", "Decisión", "Cantidad", "", "Criterio incumplido", "Fallos"],
-    ["Total leads", `=COUNTA(${leadsTab}!A2:A)`, "", "Cualificado", `=COUNTIF(${leadsTab}!E2:E,"Cualificado")`, "", "Sector", `=COUNTIF(${leadsTab}!L2:L,"No")`],
-    ["Cualificados", `=COUNTIF(${leadsTab}!E2:E,"Cualificado")`, "", "No cualificado", `=COUNTIF(${leadsTab}!E2:E,"No cualificado")`, "", "Tamaño", `=COUNTIF(${leadsTab}!M2:M,"No")`],
-    ["No cualificados", `=COUNTIF(${leadsTab}!E2:E,"No cualificado")`, "", "", "", "", "Ubicación", `=COUNTIF(${leadsTab}!N2:N,"No")`],
-    ["Tasa de cualificación", "=IFERROR(B5/B4,0)", "", "", "", "", "Interés IA", `=COUNTIF(${leadsTab}!O2:O,"No")`],
-    ["Leads hoy", `=COUNTIF(${leadsTab}!A2:A,TEXT(TODAY(),"yyyy-mm-dd")&"*")`],
-    ["Últimos 7 días", `=COUNTIFS(${leadsTab}!A2:A,">="&TEXT(TODAY()-6,"yyyy-mm-dd"))`],
+    [
+      "Total leads",
+      stats.total,
+      "",
+      "Cualificado",
+      stats.qualified,
+      "",
+      "Sector",
+      stats.criteriaFailures.sector
+    ],
+    [
+      "Cualificados",
+      stats.qualified,
+      "",
+      "No cualificado",
+      stats.notQualified,
+      "",
+      "Tamaño",
+      stats.criteriaFailures.size
+    ],
+    [
+      "No cualificados",
+      stats.notQualified,
+      "",
+      "",
+      "",
+      "",
+      "Ubicación",
+      stats.criteriaFailures.location
+    ],
+    [
+      "Tasa de cualificación",
+      stats.qualificationRate,
+      "",
+      "",
+      "",
+      "",
+      "Interés IA",
+      stats.criteriaFailures.interest
+    ],
+    ["Leads hoy", stats.today],
+    ["Últimos 7 días", stats.lastSevenDays],
     [""],
-    ["Leads por día", "Cantidad", "", "Leads cualificados de alta confianza"],
-    [`=SORT(UNIQUE(FILTER(LEFT(${leadsTab}!A2:A,10),${leadsTab}!A2:A<>"")))`, `=ARRAYFORMULA(IF(A12:A="",,COUNTIF(${leadsTab}!A2:A,A12:A&"*")))`, "", `=IFERROR(FILTER({${leadsTab}!A2:A,${leadsTab}!D2:D,${leadsTab}!F2:F},${leadsTab}!E2:E="Cualificado",${leadsTab}!K2:K="Alta"),"Sin leads cualificados de alta confianza todavía")`]
+    ["Leads por día", "Cantidad", "", "Leads cualificados de alta confianza", "Lead", "Motivo"]
+  ];
+
+  const bodyLength = Math.max(stats.leadsByDay.length, stats.topLeads.length, 1);
+
+  for (let index = 0; index < bodyLength; index += 1) {
+    const dayRow = stats.leadsByDay[index] ?? ["", ""];
+    const topLead = stats.topLeads[index] ?? ["", "", ""];
+
+    values.push([dayRow[0], dayRow[1], "", topLead[0], topLead[1], topLead[2]]);
+  }
+
+  return [
+    ...values
   ];
 }
 
