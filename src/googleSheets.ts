@@ -631,21 +631,6 @@ function dashboardFormattingRequests(sheetId: number): sheets_v4.Schema$Request[
       }
     },
     {
-      repeatCell: {
-        range: { sheetId, startRowIndex: 10, endRowIndex: 11, startColumnIndex: 0, endColumnIndex: 6 },
-        cell: {
-          userEnteredFormat: {
-            backgroundColor: { red: 1, green: 1, blue: 1 },
-            textFormat: {
-              foregroundColor: { red: 0, green: 0, blue: 0 },
-              bold: false
-            }
-          }
-        },
-        fields: "userEnteredFormat(backgroundColor,textFormat)"
-      }
-    },
-    {
       updateDimensionProperties: {
         range: {
           sheetId,
@@ -680,8 +665,19 @@ function dashboardFormattingRequests(sheetId: number): sheets_v4.Schema$Request[
         fields: "userEnteredFormat.numberFormat"
       }
     },
-    ...dashboardColumnWidths(sheetId)
+    ...dashboardColumnWidths(sheetId),
+    clearSpacerFormattingRequest(sheetId)
   ] as unknown as sheets_v4.Schema$Request[];
+}
+
+function clearSpacerFormattingRequest(sheetId: number): sheets_v4.Schema$Request {
+  return {
+    repeatCell: {
+      range: { sheetId, startRowIndex: 10, endRowIndex: 11, startColumnIndex: 0, endColumnIndex: 6 },
+      cell: { userEnteredFormat: {} },
+      fields: "userEnteredFormat"
+    }
+  } as unknown as sheets_v4.Schema$Request;
 }
 
 function dashboardColumnWidths(sheetId: number): sheets_v4.Schema$Request[] {
