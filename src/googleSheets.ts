@@ -20,6 +20,7 @@ const header = [
 ];
 
 const dashboardTabName = "Dashboard";
+const sheetTimeZone = "Europe/Madrid";
 
 let cachedSheets: sheets_v4.Sheets | null = null;
 let ensuredSheetIds = new Map<string, number>();
@@ -39,7 +40,7 @@ export async function appendLeadToSheet(row: LeadSheetRow, config: AppConfig): P
   await sheets.spreadsheets.values.append({
     spreadsheetId: config.googleSheetId,
     range: `${config.googleSheetTabName}!A:${columnLetter(header.length)}`,
-    valueInputOption: "USER_ENTERED",
+    valueInputOption: "RAW",
     insertDataOption: "INSERT_ROWS",
     requestBody: {
       values: [toSheetValues(row)]
@@ -499,10 +500,10 @@ async function buildDashboardStats(
   });
 
   const rows = (response.data.values ?? []).filter((row) => String(row[0] ?? "").trim());
-  const todayPrefix = new Date().toISOString().slice(0, 10);
+  const todayPrefix = formatDateForSheet(new Date());
   const sevenDaysAgo = new Date();
-  sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - 6);
-  const sevenDaysAgoPrefix = sevenDaysAgo.toISOString().slice(0, 10);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+  const sevenDaysAgoPrefix = formatDateForSheet(sevenDaysAgo);
 
   const qualified = rows.filter((row) => row[4] === "Cualificado").length;
   const total = rows.length;
@@ -811,7 +812,9 @@ async function normalizeExistingSheetValues(
 ): Promise<void> {
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: `${tabName}!A2:${columnLetter(header.length)}`
+    range: `${tabName}!A2:${columnLetter(header.length)}`,
+    valueRenderOption: "UNFORMATTED_VALUE",
+    dateTimeRenderOption: "SERIAL_NUMBER"
   });
 
   const rows = response.data.values ?? [];
@@ -827,7 +830,7 @@ async function normalizeExistingSheetValues(
       normalized.push("");
     }
 
-    const formattedTimestamp = formatTimestampForSheet(String(normalized[0] ?? ""));
+    const formattedTimestamp = formatTimestampForSheet(normalized[0]);
     const formattedAutomationInterest = formatAutomationInterestForSheet(normalized[9]);
     const formattedConfidence = formatConfidenceForSheet(String(normalized[10] ?? ""));
     const formattedSectorCriterion = formatCriterionForSheet(normalized[11], deriveSectorCriterion(normalized));
@@ -898,8 +901,22 @@ function toSheetValues(row: LeadSheetRow): Array<string | number | boolean> {
   ];
 }
 
-function formatTimestampForSheet(value: string): string {
-  const trimmed = value.trim();
+function formatTimestampForSheet(value: unknown): string {
+  if (typeof value === "number" && isGoogleDateSerial(value)) {
+    return formatGoogleSerialDateForSheet(value);
+  }
+
+  const trimmed = String(value ?? "").trim();
+  const serialDate = parseGoogleDateSerial(trimmed);
+  if (serialDate !== null) {
+    return formatGoogleSerialDateForSheet(serialDate);
+  }
+
+  const parsedDate = new Date(trimmed);
+  const hasExplicitTimeZone = /T.*(?:Z|[+-]\d{2}:?\d{2})$/.test(trimmed);
+  if (hasExplicitTimeZone && !Number.isNaN(parsedDate.getTime())) {
+    return formatDateTimeForSheet(parsedDate);
+  }
 
   const isoMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/);
   if (isoMatch) {
@@ -911,12 +928,57 @@ function formatTimestampForSheet(value: string): string {
     return `${compactMatch[1]} ${compactMatch[2]}:${compactMatch[3]}`;
   }
 
-  const parsedDate = new Date(trimmed);
   if (!Number.isNaN(parsedDate.getTime())) {
-    return parsedDate.toISOString().slice(0, 16).replace("T", " ");
+    return formatDateTimeForSheet(parsedDate);
   }
 
   return trimmed;
+}
+
+function parseGoogleDateSerial(value: string): number | null {
+  const normalized = value.replace(",", ".");
+  if (!/^\d{4,5}(?:\.\d+)?$/.test(normalized)) {
+    return null;
+  }
+
+  const serialDate = Number.parseFloat(normalized);
+  return isGoogleDateSerial(serialDate) ? serialDate : null;
+}
+
+function isGoogleDateSerial(value: number): boolean {
+  return Number.isFinite(value) && value > 30000 && value < 80000;
+}
+
+function formatGoogleSerialDateForSheet(serialDate: number): string {
+  const googleEpoch = Date.UTC(1899, 11, 30);
+  const millisecondsPerDay = 24 * 60 * 60 * 1000;
+  return formatDateTimeForSheet(new Date(googleEpoch + serialDate * millisecondsPerDay));
+}
+
+function formatDateForSheet(date: Date): string {
+  const parts = datePartsInSheetTimeZone(date);
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function formatDateTimeForSheet(date: Date): string {
+  const parts = datePartsInSheetTimeZone(date);
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
+}
+
+function datePartsInSheetTimeZone(date: Date): Record<string, string> {
+  const formatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: sheetTimeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  });
+
+  return Object.fromEntries(
+    formatter.formatToParts(date).map((part) => [part.type, part.value])
+  );
 }
 
 function formatConfidenceForSheet(value: string): string {
