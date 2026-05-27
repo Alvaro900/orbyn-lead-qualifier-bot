@@ -282,7 +282,7 @@ function leadDataRowsFormattingRequest(sheetId: number): sheets_v4.Schema$Reques
       },
       cell: {
         userEnteredFormat: {
-          backgroundColor: { red: 1, green: 1, blue: 1 },
+          backgroundColor: { red: 0.94, green: 0.97, blue: 1 },
           verticalAlignment: "MIDDLE",
           wrapStrategy: "WRAP",
           textFormat: {
