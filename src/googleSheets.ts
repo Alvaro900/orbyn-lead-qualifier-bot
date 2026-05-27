@@ -455,7 +455,6 @@ type DashboardStats = {
     interest: number;
   };
   leadsByDay: Array<[string, number]>;
-  topLeads: Array<[string, string, string]>;
 };
 
 async function buildDashboardStats(
@@ -485,16 +484,6 @@ async function buildDashboardStats(
     }
   }
 
-  const topLeads = rows
-    .filter((row) => row[4] === "Cualificado" && row[10] === "Alta")
-    .slice(-10)
-    .reverse()
-    .map((row) => [
-      String(row[0] ?? ""),
-      truncateDashboardText(String(row[3] ?? ""), 72),
-      truncateDashboardText(String(row[5] ?? ""), 68)
-    ] as [string, string, string]);
-
   return {
     total,
     qualified,
@@ -509,8 +498,7 @@ async function buildDashboardStats(
       location: rows.filter((row) => row[13] === "No").length,
       interest: rows.filter((row) => row[14] === "No").length
     },
-    leadsByDay: [...leadsByDayMap.entries()].sort(([left], [right]) => left.localeCompare(right)),
-    topLeads
+    leadsByDay: [...leadsByDayMap.entries()].sort(([left], [right]) => left.localeCompare(right))
   };
 }
 
@@ -550,16 +538,15 @@ function dashboardValues(stats: DashboardStats): Array<Array<string | number>> {
     ["Leads de hoy", stats.today],
     ["Leads últimos 7 días", stats.lastSevenDays],
     [""],
-    ["Evolución por día", "Nº leads", "", "Fecha", "Lead listo para ventas", "Motivo"]
+    ["Evolución por día", "Nº leads"]
   ];
 
-  const bodyLength = Math.max(stats.leadsByDay.length, stats.topLeads.length, 1);
+  const bodyLength = Math.max(stats.leadsByDay.length, 1);
 
   for (let index = 0; index < bodyLength; index += 1) {
     const dayRow = stats.leadsByDay[index] ?? ["", ""];
-    const topLead = stats.topLeads[index] ?? ["", "", ""];
 
-    values.push([dayRow[0], dayRow[1], "", topLead[0], topLead[1], topLead[2]]);
+    values.push([dayRow[0], dayRow[1]]);
   }
 
   values.push([""]);
@@ -753,48 +740,6 @@ function dashboardChartRequests(sheetId: number): sheets_v4.Schema$Request[] {
       addChart: {
         chart: {
           spec: {
-            title: "Motivos de descarte",
-            basicChart: {
-              chartType: "BAR",
-              legendPosition: "NO_LEGEND",
-              axis: [
-                { position: "BOTTOM_AXIS", title: "Fallos" },
-                { position: "LEFT_AXIS", title: "Criterio" }
-              ],
-              domains: [
-                {
-                  domain: {
-                    sourceRange: {
-                      sources: [{ sheetId, startRowIndex: 3, endRowIndex: 7, startColumnIndex: 3, endColumnIndex: 4 }]
-                    }
-                  }
-                }
-              ],
-              series: [
-                {
-                  series: {
-                    sourceRange: {
-                      sources: [{ sheetId, startRowIndex: 3, endRowIndex: 7, startColumnIndex: 4, endColumnIndex: 5 }]
-                    }
-                  }
-                }
-              ]
-            }
-          },
-          position: {
-            overlayPosition: {
-              anchorCell: { sheetId, rowIndex: 16, columnIndex: 9 },
-              widthPixels: 420,
-              heightPixels: 280
-            }
-          }
-        }
-      }
-    },
-    {
-      addChart: {
-        chart: {
-          spec: {
             title: "Leads por día",
             basicChart: {
               chartType: "COLUMN",
@@ -826,6 +771,48 @@ function dashboardChartRequests(sheetId: number): sheets_v4.Schema$Request[] {
           position: {
             overlayPosition: {
               anchorCell: { sheetId, rowIndex: 16, columnIndex: 3 },
+              widthPixels: 420,
+              heightPixels: 280
+            }
+          }
+        }
+      }
+    },
+    {
+      addChart: {
+        chart: {
+          spec: {
+            title: "Motivos de descarte",
+            basicChart: {
+              chartType: "BAR",
+              legendPosition: "NO_LEGEND",
+              axis: [
+                { position: "BOTTOM_AXIS", title: "Fallos" },
+                { position: "LEFT_AXIS", title: "Criterio" }
+              ],
+              domains: [
+                {
+                  domain: {
+                    sourceRange: {
+                      sources: [{ sheetId, startRowIndex: 3, endRowIndex: 7, startColumnIndex: 3, endColumnIndex: 4 }]
+                    }
+                  }
+                }
+              ],
+              series: [
+                {
+                  series: {
+                    sourceRange: {
+                      sources: [{ sheetId, startRowIndex: 3, endRowIndex: 7, startColumnIndex: 4, endColumnIndex: 5 }]
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          position: {
+            overlayPosition: {
+              anchorCell: { sheetId, rowIndex: 16, columnIndex: 9 },
               widthPixels: 420,
               heightPixels: 280
             }
