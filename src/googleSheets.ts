@@ -620,21 +620,6 @@ function dashboardFormattingRequests(sheetId: number): sheets_v4.Schema$Request[
     },
     {
       repeatCell: {
-        range: { sheetId, startRowIndex: 10, endRowIndex: 11, startColumnIndex: 0, endColumnIndex: 6 },
-        cell: {
-          userEnteredFormat: {
-            backgroundColor: { red: 0.08, green: 0.18, blue: 0.31 },
-            textFormat: {
-              foregroundColor: { red: 1, green: 1, blue: 1 },
-              bold: true
-            }
-          }
-        },
-        fields: "userEnteredFormat(backgroundColor,textFormat)"
-      }
-    },
-    {
-      repeatCell: {
         range: { sheetId, startRowIndex: 3, endRowIndex: 35, startColumnIndex: 0, endColumnIndex: 8 },
         cell: {
           userEnteredFormat: {
@@ -643,6 +628,21 @@ function dashboardFormattingRequests(sheetId: number): sheets_v4.Schema$Request[
           }
         },
         fields: "userEnteredFormat(verticalAlignment,wrapStrategy)"
+      }
+    },
+    {
+      repeatCell: {
+        range: { sheetId, startRowIndex: 10, endRowIndex: 11, startColumnIndex: 0, endColumnIndex: 6 },
+        cell: {
+          userEnteredFormat: {
+            backgroundColor: { red: 1, green: 1, blue: 1 },
+            textFormat: {
+              foregroundColor: { red: 0, green: 0, blue: 0 },
+              bold: false
+            }
+          }
+        },
+        fields: "userEnteredFormat(backgroundColor,textFormat)"
       }
     },
     {
