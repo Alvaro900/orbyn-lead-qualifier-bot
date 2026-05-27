@@ -506,48 +506,50 @@ function dashboardValues(stats: DashboardStats): Array<Array<string | number>> {
   const values: Array<Array<string | number>> = [
     ["Dashboard de leads Orbyn"],
     ["Resumen ejecutivo de volumen, calidad y motivos de descarte."],
-    ["Indicador", "Valor", "", "Motivo de descarte", "Nº leads"],
+    ["Indicador", "Valor", "", "Motivo de descarte", "Nº leads", "", "Evolución por día", "Nº leads"],
     [
       "Leads recibidos",
       stats.total,
       "",
       "Sector no encaja",
-      stats.criteriaFailures.sector
+      stats.criteriaFailures.sector,
+      "",
+      stats.leadsByDay[0]?.[0] ?? "",
+      stats.leadsByDay[0]?.[1] ?? ""
     ],
     [
       "Leads buenos",
       stats.qualified,
       "",
       "Tamaño insuficiente",
-      stats.criteriaFailures.size
+      stats.criteriaFailures.size,
+      "",
+      stats.leadsByDay[1]?.[0] ?? "",
+      stats.leadsByDay[1]?.[1] ?? ""
     ],
     [
       "Leads descartados",
       stats.notQualified,
       "",
       "Fuera de España/LatAm",
-      stats.criteriaFailures.location
+      stats.criteriaFailures.location,
+      "",
+      stats.leadsByDay[2]?.[0] ?? "",
+      stats.leadsByDay[2]?.[1] ?? ""
     ],
     [
       "% leads cualificados",
       stats.qualificationRate,
       "",
       "Sin interés IA claro",
-      stats.criteriaFailures.interest
+      stats.criteriaFailures.interest,
+      "",
+      stats.leadsByDay[3]?.[0] ?? "",
+      stats.leadsByDay[3]?.[1] ?? ""
     ],
     ["Leads de hoy", stats.today],
-    ["Leads últimos 7 días", stats.lastSevenDays],
-    [""],
-    ["Evolución por día", "Nº leads"]
+    ["Leads últimos 7 días", stats.lastSevenDays]
   ];
-
-  const bodyLength = Math.max(stats.leadsByDay.length, 1);
-
-  for (let index = 0; index < bodyLength; index += 1) {
-    const dayRow = stats.leadsByDay[index] ?? ["", ""];
-
-    values.push([dayRow[0], dayRow[1]]);
-  }
 
   return values;
 }
@@ -683,7 +685,7 @@ function dashboardFormattingRequests(sheetId: number): sheets_v4.Schema$Request[
 }
 
 function dashboardColumnWidths(sheetId: number): sheets_v4.Schema$Request[] {
-  const widths = [190, 90, 36, 145, 430, 300, 36, 140, 36, 420, 28, 360];
+  const widths = [170, 70, 18, 160, 70, 18, 140, 70, 18, 300, 28, 300];
 
   return widths.map((pixelSize, index) => ({
     updateDimensionProperties: {
@@ -722,9 +724,9 @@ function dashboardChartRequests(sheetId: number): sheets_v4.Schema$Request[] {
           },
           position: {
             overlayPosition: {
-              anchorCell: { sheetId, rowIndex: 1, columnIndex: 9 },
-              widthPixels: 420,
-              heightPixels: 280
+              anchorCell: { sheetId, rowIndex: 9, columnIndex: 0 },
+              widthPixels: 320,
+              heightPixels: 230
             }
           }
         }
@@ -764,9 +766,9 @@ function dashboardChartRequests(sheetId: number): sheets_v4.Schema$Request[] {
           },
           position: {
             overlayPosition: {
-              anchorCell: { sheetId, rowIndex: 16, columnIndex: 9 },
-              widthPixels: 420,
-              heightPixels: 280
+              anchorCell: { sheetId, rowIndex: 9, columnIndex: 4 },
+              widthPixels: 360,
+              heightPixels: 230
             }
           }
         }
