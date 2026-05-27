@@ -22,7 +22,7 @@ const header = [
 const dashboardTabName = "Dashboard";
 
 let cachedSheets: sheets_v4.Sheets | null = null;
-let ensuredSheetIds = new Set<string>();
+let ensuredSheetIds = new Map<string, number>();
 
 export async function appendLeadToSheet(row: LeadSheetRow, config: AppConfig): Promise<void> {
   if (!config.googleSheetId) {
@@ -30,7 +30,11 @@ export async function appendLeadToSheet(row: LeadSheetRow, config: AppConfig): P
   }
 
   const sheets = getSheetsClient(config);
-  await ensureLeadsSheet(sheets, config.googleSheetId, config.googleSheetTabName);
+  const leadsSheetId = await ensureLeadsSheet(
+    sheets,
+    config.googleSheetId,
+    config.googleSheetTabName
+  );
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: config.googleSheetId,
@@ -41,6 +45,8 @@ export async function appendLeadToSheet(row: LeadSheetRow, config: AppConfig): P
       values: [toSheetValues(row)]
     }
   });
+
+  await applyLeadDataRowsFormatting(sheets, config.googleSheetId, leadsSheetId);
 
   const dashboardSheetId = await getOrCreateSheetId(
     sheets,
@@ -93,17 +99,19 @@ async function ensureLeadsSheet(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string,
   tabName: string
-): Promise<void> {
+): Promise<number> {
   const cacheKey = `${spreadsheetId}:${tabName}`;
-  if (ensuredSheetIds.has(cacheKey)) {
-    return;
+  const cachedSheetId = ensuredSheetIds.get(cacheKey);
+  if (typeof cachedSheetId === "number") {
+    return cachedSheetId;
   }
 
   const sheetId = await getOrCreateLeadsSheetId(sheets, spreadsheetId, tabName);
   await ensureSheetHeader(sheets, spreadsheetId, tabName);
   await applySheetFormatting(sheets, spreadsheetId, sheetId);
 
-  ensuredSheetIds.add(cacheKey);
+  ensuredSheetIds.set(cacheKey, sheetId);
+  return sheetId;
 }
 
 async function getOrCreateLeadsSheetId(
@@ -228,23 +236,7 @@ async function applySheetFormatting(
               "userEnteredFormat(backgroundColor,horizontalAlignment,verticalAlignment,wrapStrategy,textFormat)"
           }
         },
-        {
-          repeatCell: {
-            range: {
-              sheetId,
-              startRowIndex: 1,
-              startColumnIndex: 0,
-              endColumnIndex: header.length
-            },
-            cell: {
-              userEnteredFormat: {
-                verticalAlignment: "TOP",
-                wrapStrategy: "WRAP"
-              }
-            },
-            fields: "userEnteredFormat(verticalAlignment,wrapStrategy)"
-          }
-        },
+        leadDataRowsFormattingRequest(sheetId),
         {
           setBasicFilter: {
             filter: {
@@ -264,6 +256,45 @@ async function applySheetFormatting(
       ]
     }
   });
+}
+
+async function applyLeadDataRowsFormatting(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  sheetId: number
+): Promise<void> {
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      requests: [leadDataRowsFormattingRequest(sheetId)]
+    }
+  });
+}
+
+function leadDataRowsFormattingRequest(sheetId: number): sheets_v4.Schema$Request {
+  return {
+    repeatCell: {
+      range: {
+        sheetId,
+        startRowIndex: 1,
+        startColumnIndex: 0,
+        endColumnIndex: header.length
+      },
+      cell: {
+        userEnteredFormat: {
+          backgroundColor: { red: 1, green: 1, blue: 1 },
+          verticalAlignment: "MIDDLE",
+          wrapStrategy: "WRAP",
+          textFormat: {
+            foregroundColor: { red: 0, green: 0, blue: 0 },
+            bold: false
+          }
+        }
+      },
+      fields:
+        "userEnteredFormat(backgroundColor,verticalAlignment,wrapStrategy,textFormat)"
+    }
+  };
 }
 
 function columnWidths(sheetId: number): sheets_v4.Schema$Request[] {
