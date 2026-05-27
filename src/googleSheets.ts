@@ -549,12 +549,6 @@ function dashboardValues(stats: DashboardStats): Array<Array<string | number>> {
     values.push([dayRow[0], dayRow[1]]);
   }
 
-  values.push([""]);
-  values.push(["Guía rápida"]);
-  values.push(["Leads buenos", "Cumplen los 4 criterios: sector, tamaño, ubicación e interés en IA."]);
-  values.push(["Leads descartados", "Fallan al menos un criterio del ICP."]);
-  values.push(["% leads cualificados", "Porcentaje de leads que ventas debería revisar primero."]);
-
   return values;
 }
 
@@ -729,48 +723,6 @@ function dashboardChartRequests(sheetId: number): sheets_v4.Schema$Request[] {
           position: {
             overlayPosition: {
               anchorCell: { sheetId, rowIndex: 1, columnIndex: 9 },
-              widthPixels: 420,
-              heightPixels: 280
-            }
-          }
-        }
-      }
-    },
-    {
-      addChart: {
-        chart: {
-          spec: {
-            title: "Leads por día",
-            basicChart: {
-              chartType: "COLUMN",
-              legendPosition: "NO_LEGEND",
-              axis: [
-                { position: "BOTTOM_AXIS", title: "Fecha" },
-                { position: "LEFT_AXIS", title: "Leads" }
-              ],
-              domains: [
-                {
-                  domain: {
-                    sourceRange: {
-                      sources: [{ sheetId, startRowIndex: 11, endRowIndex: 50, startColumnIndex: 0, endColumnIndex: 1 }]
-                    }
-                  }
-                }
-              ],
-              series: [
-                {
-                  series: {
-                    sourceRange: {
-                      sources: [{ sheetId, startRowIndex: 11, endRowIndex: 50, startColumnIndex: 1, endColumnIndex: 2 }]
-                    }
-                  }
-                }
-              ]
-            }
-          },
-          position: {
-            overlayPosition: {
-              anchorCell: { sheetId, rowIndex: 16, columnIndex: 3 },
               widthPixels: 420,
               heightPixels: 280
             }
