@@ -491,8 +491,8 @@ async function buildDashboardStats(
     .reverse()
     .map((row) => [
       String(row[0] ?? ""),
-      String(row[3] ?? ""),
-      String(row[5] ?? "")
+      truncateDashboardText(String(row[3] ?? ""), 72),
+      truncateDashboardText(String(row[5] ?? ""), 68)
     ] as [string, string, string]);
 
   return {
@@ -652,7 +652,7 @@ function dashboardFormattingRequests(sheetId: number): sheets_v4.Schema$Request[
     },
     {
       repeatCell: {
-        range: { sheetId, startRowIndex: 3, endRowIndex: 9, startColumnIndex: 0, endColumnIndex: 8 },
+        range: { sheetId, startRowIndex: 3, endRowIndex: 35, startColumnIndex: 0, endColumnIndex: 8 },
         cell: {
           userEnteredFormat: {
             verticalAlignment: "MIDDLE",
@@ -702,7 +702,7 @@ function dashboardFormattingRequests(sheetId: number): sheets_v4.Schema$Request[
 }
 
 function dashboardColumnWidths(sheetId: number): sheets_v4.Schema$Request[] {
-  const widths = [190, 90, 28, 180, 90, 28, 210, 90, 28, 360, 28, 360];
+  const widths = [190, 90, 36, 145, 430, 300, 36, 140, 36, 420, 28, 360];
 
   return widths.map((pixelSize, index) => ({
     updateDimensionProperties: {
@@ -1060,6 +1060,16 @@ function normalizeText(value: string): string {
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase();
+}
+
+function truncateDashboardText(value: string, maxLength: number): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, maxLength - 1).trim()}…`;
 }
 
 function columnLetter(columnCount: number): string {
